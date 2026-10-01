@@ -2,12 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { requireAuthenticatedUserId } from "@/lib/auth";
 import { getAppStateSnapshot } from "@/lib/app-state";
 import { isValidTimeZone } from "@/lib/dates";
 import { levelForXp, xpThresholdForLevel } from "@/lib/progression";
 import { getRelapseHistory } from "@/lib/relapse-history";
 import { calculateCurrentStreak } from "@/lib/streak";
-import { createLocalSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { calculateLifetimeXp } from "@/lib/xp";
 
 export type RegisterRelapseResult =
@@ -18,11 +19,12 @@ export async function registerRelapse(
   relapseId: string,
   timeZone: string,
 ): Promise<RegisterRelapseResult> {
+  const userId = await requireAuthenticatedUserId();
   if (!z.uuid().safeParse(relapseId).success || !isValidTimeZone(timeZone)) {
     return { ok: false, error: "Não foi possível validar este registro." };
   }
 
-  const { state } = await getAppStateSnapshot();
+  const { state } = await getAppStateSnapshot(userId);
   if (!state) return { ok: false, error: "Inicie a jornada antes de registrar uma recaída." };
 
   const relapses = await getRelapseHistory(state.id);
@@ -36,7 +38,8 @@ export async function registerRelapse(
   );
   const earnedLevel = levelForXp(lifetimeXp);
 
-  const { error } = await createLocalSupabaseClient().rpc("register_relapse", {
+  const { error } = await createAdminSupabaseClient().rpc("register_relapse", {
+    p_user_id: userId,
     p_relapse_id: relapseId,
     p_time_zone: timeZone,
     p_earned_level: earnedLevel,
@@ -46,7 +49,7 @@ export async function registerRelapse(
   if (error) {
     return {
       ok: false,
-      error: "Não foi possível registrar agora. Verifique o banco local e tente novamente.",
+      error: "Não foi possível registrar agora. Verifique a conexão e tente novamente.",
     };
   }
 

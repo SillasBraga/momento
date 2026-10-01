@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { createLocalSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 
 const relapseSchema = z.object({
   id: z.uuid(),
@@ -13,7 +13,7 @@ const relapseSchema = z.object({
 export type RelapseHistoryItem = z.infer<typeof relapseSchema>;
 
 export async function getRelapseHistory(appStateId: string): Promise<RelapseHistoryItem[]> {
-  const client = createLocalSupabaseClient();
+  const client = createAdminSupabaseClient();
   const pageSize = 500;
   const history: RelapseHistoryItem[] = [];
 
@@ -27,7 +27,7 @@ export async function getRelapseHistory(appStateId: string): Promise<RelapseHist
       .range(offset, offset + pageSize - 1);
 
     if (error) {
-      throw new Error(`Não foi possível ler o histórico local: ${error.message}`);
+      throw new Error(`Não foi possível ler o histórico: ${error.message}`);
     }
 
     history.push(...z.array(relapseSchema).parse(data));

@@ -44,7 +44,7 @@ export function XpProgress({
           setSyncError(result.error ?? "Não foi possível salvar o nível.");
         }
       } catch {
-        setSyncError("Não foi possível salvar o nível no banco local.");
+        setSyncError("Não foi possível salvar o nível no banco.");
       }
     });
   }, [level, highestLevelReached]);

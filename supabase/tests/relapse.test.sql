@@ -4,14 +4,23 @@ set local statement_timeout = '30s';
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(22);
+select plan(27);
+
+create temporary table test_identity (id uuid not null);
+insert into test_identity values (gen_random_uuid());
+insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
+select id, '00000000-0000-0000-0000-000000000000', 'authenticated',
+       'authenticated', 'momento-test-one@example.invalid', now(), now()
+from test_identity;
 
 -- Keep every fixture inside this transaction, including changes to an existing journey.
 do $$
 begin
   if not exists (select 1 from public.app_state) then
-    insert into public.app_state (journey_started_at, current_streak_started_at)
-    values (clock_timestamp() - interval '40 days', clock_timestamp() - interval '35 days');
+    insert into public.app_state (user_id, journey_started_at, current_streak_started_at)
+    values ((select id from test_identity), clock_timestamp() - interval '40 days', clock_timestamp() - interval '35 days');
+  else
+    update public.app_state set user_id = (select id from test_identity);
   end if;
 end;
 $$;
@@ -23,7 +32,7 @@ select exists (select 1 from public.relapses) as had_history,
 do $$
 begin
   if not (select had_history from test_journey_meta) then
-    perform public.update_journey_start(
+    perform public.update_journey_start((select id from test_identity),
       (select target_start from test_journey_meta), 2, 1000
     );
   end if;
@@ -57,7 +66,7 @@ create temporary table test_checks (name text primary key, passed boolean not nu
 
 do $$
 begin
-  perform public.register_relapse((select id from test_relapse_ids where label = 'first'), 'Pacific/Honolulu', 8, 33000);
+  perform public.register_relapse((select id from test_identity), (select id from test_relapse_ids where label = 'first'), 'Pacific/Honolulu', 8, 33000);
 end;
 $$;
 
@@ -84,7 +93,7 @@ select is(
 do $$
 begin
   begin
-    perform public.update_journey_start(clock_timestamp() - interval '1 day', 1, 0);
+    perform public.update_journey_start((select id from test_identity), clock_timestamp() - interval '1 day', 1, 0);
     insert into test_checks values ('locked_start', false);
   exception when others then
     insert into test_checks values ('locked_start', sqlerrm = 'Journey start is locked after a relapse');
@@ -95,7 +104,7 @@ select ok((select passed from test_checks where name = 'locked_start'), 'data in
 
 do $$
 begin
-  perform public.register_relapse((select id from test_relapse_ids where label = 'second'), 'Pacific/Honolulu', 8, 33000);
+  perform public.register_relapse((select id from test_identity), (select id from test_relapse_ids where label = 'second'), 'Pacific/Honolulu', 8, 33000);
 end;
 $$;
 
@@ -114,7 +123,7 @@ select is(
 
 do $$
 begin
-  perform public.register_relapse((select id from test_relapse_ids where label = 'second'), 'Pacific/Honolulu', 8, 33000);
+  perform public.register_relapse((select id from test_identity), (select id from test_relapse_ids where label = 'second'), 'Pacific/Honolulu', 8, 33000);
 end;
 $$;
 
@@ -132,7 +141,7 @@ select is(
 
 do $$
 begin
-  perform public.register_relapse((select id from test_relapse_ids where label = 'third'), 'Pacific/Kiritimati', 8, 33000);
+  perform public.register_relapse((select id from test_identity), (select id from test_relapse_ids where label = 'third'), 'Pacific/Kiritimati', 8, 33000);
 end;
 $$;
 
@@ -148,7 +157,7 @@ select is((select highest_level_reached from public.app_state), 8, 'penalidades 
 update public.app_state set display_level = 1, last_level_penalty_date = null;
 do $$
 begin
-  perform public.register_relapse((select id from test_relapse_ids where label = 'minimum'), 'Pacific/Honolulu', 8, 33000);
+  perform public.register_relapse((select id from test_identity), (select id from test_relapse_ids where label = 'minimum'), 'Pacific/Honolulu', 8, 33000);
 end;
 $$;
 
@@ -161,7 +170,7 @@ select is(
 
 do $$
 begin
-  perform public.promote_level(9, 46000);
+  perform public.promote_level((select id from test_identity), 9, 46000);
 end;
 $$;
 
@@ -171,7 +180,7 @@ select is((select highest_level_reached from public.app_state), 9, 'promoção a
 do $$
 begin
   begin
-    perform public.promote_level(10, 1000000000);
+    perform public.promote_level((select id from test_identity), 10, 1000000000);
     insert into test_checks values ('insufficient_xp', false);
   exception when others then
     insert into test_checks values ('insufficient_xp', sqlerrm = 'Not enough XP for level promotion');
@@ -189,6 +198,28 @@ $$;
 
 select ok((select passed from test_checks where name = 'insufficient_xp'), 'promoção sem XP é rejeitada');
 select ok((select passed from test_checks where name = 'immutable_history'), 'histórico não pode ser alterado');
+
+-- A second account receives independent state and cannot see tables through browser roles.
+create temporary table second_identity (id uuid not null);
+insert into second_identity values (gen_random_uuid());
+insert into auth.users (id, instance_id, aud, role, email, created_at, updated_at)
+select id, '00000000-0000-0000-0000-000000000000', 'authenticated',
+       'authenticated', 'momento-test-two@example.invalid', now(), now()
+from second_identity;
+insert into public.app_state (user_id, journey_started_at, current_streak_started_at)
+select id, clock_timestamp() - interval '3 days', clock_timestamp() - interval '3 days'
+from second_identity;
+select is((select count(*)::integer from public.app_state where user_id is not null), 2,
+  'cada conta possui sua própria jornada');
+select is((select display_level from public.app_state where user_id = (select id from test_identity)), 9,
+  'criar outra conta não altera o nível da primeira');
+select is((select count(*)::integer from public.relapses
+  where app_state_id = (select id from public.app_state where user_id = (select id from second_identity))),
+  0, 'nova conta não herda recaídas');
+select ok(not has_table_privilege('authenticated', 'public.app_state', 'select'),
+  'cliente autenticado não lê a tabela diretamente');
+select ok(not has_function_privilege('authenticated', 'public.register_relapse(uuid,uuid,text,integer,bigint)', 'execute'),
+  'cliente autenticado não chama RPC administrativa');
 
 select * from finish();
 rollback;

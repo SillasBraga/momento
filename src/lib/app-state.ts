@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { createLocalSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 
 const appStateSchema = z.object({
   id: z.uuid(),
@@ -13,19 +13,20 @@ const appStateSchema = z.object({
 
 export type AppState = z.infer<typeof appStateSchema>;
 
-export async function getAppStateSnapshot(): Promise<{
+export async function getAppStateSnapshot(userId: string): Promise<{
   state: AppState | null;
   observedAtMilliseconds: number;
 }> {
-  const { data, error } = await createLocalSupabaseClient()
+  const { data, error } = await createAdminSupabaseClient()
     .from("app_state")
     .select(
       "id, journey_started_at, current_streak_started_at, display_level, highest_level_reached, last_level_penalty_date",
     )
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (error) {
-    throw new Error(`Não foi possível ler o estado local: ${error.message}`);
+    throw new Error(`Não foi possível ler a jornada: ${error.message}`);
   }
 
   return {

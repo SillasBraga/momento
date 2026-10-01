@@ -3,9 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { requireAuthenticatedUserId } from "@/lib/auth";
 import { levelForXp, xpThresholdForLevel } from "@/lib/progression";
 import { calculateCurrentStreak } from "@/lib/streak";
-import { createLocalSupabaseClient } from "@/lib/supabase/server";
+import { createAdminSupabaseClient } from "@/lib/supabase/server";
 import { calculateLifetimeXp } from "@/lib/xp";
 
 const initialJourneySchema = z.discriminatedUnion("mode", [
@@ -22,6 +23,7 @@ export async function initializeJourney(
   _previous: InitializeJourneyResult,
   formData: FormData,
 ): Promise<InitializeJourneyResult> {
+  const userId = await requireAuthenticatedUserId();
   const input = initialJourneySchema.safeParse({
     mode: formData.get("mode"),
     startedAt: formData.get("startedAt"),
@@ -42,7 +44,8 @@ export async function initializeJourney(
   const initialSeconds = calculateCurrentStreak(startedAt.getTime(), now.getTime());
   const initialLevel = levelForXp(calculateLifetimeXp([], initialSeconds));
 
-  const { error } = await createLocalSupabaseClient().from("app_state").insert({
+  const { error } = await createAdminSupabaseClient().from("app_state").insert({
+    user_id: userId,
     journey_started_at: startedAt.toISOString(),
     current_streak_started_at: startedAt.toISOString(),
     display_level: initialLevel,
@@ -50,7 +53,7 @@ export async function initializeJourney(
   });
 
   if (error && error.code !== "23505") {
-    return { error: "Não foi possível salvar. Verifique o Supabase local e tente novamente." };
+    return { error: "Não foi possível salvar. Verifique a conexão com o Supabase e tente novamente." };
   }
 
   revalidatePath("/");
@@ -61,6 +64,7 @@ export async function updateJourneyStart(
   _previous: InitializeJourneyResult,
   formData: FormData,
 ): Promise<InitializeJourneyResult> {
+  const userId = await requireAuthenticatedUserId();
   const input = z.iso.datetime({ offset: true }).safeParse(formData.get("startedAt"));
   if (!input.success) return { error: "Escolha uma data e horário válidos." };
 
@@ -71,7 +75,8 @@ export async function updateJourneyStart(
 
   const currentSeconds = calculateCurrentStreak(startedAt.getTime(), Date.now());
   const level = levelForXp(calculateLifetimeXp([], currentSeconds));
-  const { error } = await createLocalSupabaseClient().rpc("update_journey_start", {
+  const { error } = await createAdminSupabaseClient().rpc("update_journey_start", {
+    p_user_id: userId,
     p_started_at: startedAt.toISOString(),
     p_level: level,
     p_required_xp: xpThresholdForLevel(level),
@@ -81,7 +86,7 @@ export async function updateJourneyStart(
     return {
       error: error.message.includes("Journey start is locked after a relapse")
         ? "A data inicial não pode mudar após uma recaída."
-        : "Não foi possível salvar a data inicial no banco local.",
+        : "Não foi possível salvar a data inicial no banco.",
     };
   }
 

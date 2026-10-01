@@ -5,17 +5,19 @@ import { LocalDateTime } from "@/components/local-date-time";
 import { getAppStateSnapshot } from "@/lib/app-state";
 import { getRelapseHistory } from "@/lib/relapse-history";
 import { formatStreakDuration } from "@/lib/streak";
+import { requireAuthenticatedUserId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function HistoryPage() {
-  const { state, observedAtMilliseconds } = await getAppStateSnapshot();
+  const userId = await requireAuthenticatedUserId();
+  const { state, observedAtMilliseconds } = await getAppStateSnapshot(userId);
   if (!state) redirect("/");
 
   const relapses = await getRelapseHistory(state.id);
 
   return (
-    <AppFrame active="history" level={state.display_level}>
+    <AppFrame active="history" level={state.display_level} authenticated>
       <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Histórico</h1>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
         Cada sequência faz parte do seu progresso. As mais recentes aparecem primeiro.

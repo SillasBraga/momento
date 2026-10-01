@@ -7,17 +7,19 @@ import { RelapseButton } from "@/components/relapse-button";
 import { StreakCounter } from "@/components/streak-counter";
 import { StatsGrid } from "@/components/stats-grid";
 import { XpProgress } from "@/components/xp-progress";
+import { requireAuthenticatedUserId } from "@/lib/auth";
 import { getAppStateSnapshot } from "@/lib/app-state";
 import { getRelapseHistory } from "@/lib/relapse-history";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const { state: appState, observedAtMilliseconds } = await getAppStateSnapshot();
+  const userId = await requireAuthenticatedUserId();
+  const { state: appState, observedAtMilliseconds } = await getAppStateSnapshot(userId);
   const relapses = appState ? await getRelapseHistory(appState.id) : [];
 
   return (
-    <AppFrame active={appState ? "dashboard" : undefined} level={appState?.display_level}>
+    <AppFrame active={appState ? "dashboard" : undefined} level={appState?.display_level} authenticated>
         {appState ? (
           <>
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -70,7 +72,7 @@ export default async function Home() {
               Cada momento conta.
             </h1>
             <p className="mt-5 text-base leading-7 text-muted-foreground">
-              Escolha o início da jornada. Seu progresso ficará neste computador.
+              Escolha o início da jornada. Seu progresso ficará vinculado à sua conta.
             </p>
             <JourneyStartForm />
           </>

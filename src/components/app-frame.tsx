@@ -3,15 +3,19 @@ import { Sparkles } from "lucide-react";
 import { Navigation, type ActivePage } from "@/components/navigation";
 import { ThemeRootSync } from "@/components/theme-root-sync";
 import { getLevelTheme } from "@/lib/level-theme";
+import { signOut } from "@/app/login/actions";
+import { Button } from "@/components/ui/button";
 
 export function AppFrame({
   active,
   children,
   level = 1,
+  authenticated = false,
 }: {
   active?: ActivePage;
   children: ReactNode;
   level?: number;
+  authenticated?: boolean;
 }) {
   const theme = getLevelTheme(level);
 
@@ -34,6 +38,11 @@ export function AppFrame({
               <span className="text-sm font-semibold tracking-[0.2em] uppercase">Momento</span>
               {active && <p className="mt-1 text-xs font-medium tracking-wide text-muted-foreground">Nível {level} · {theme.name}</p>}
             </div>
+            {authenticated && (
+              <form action={signOut} className="ml-auto">
+                <Button type="submit" variant="ghost" size="sm">Sair</Button>
+              </form>
+            )}
           </div>
           {children}
         </section>
