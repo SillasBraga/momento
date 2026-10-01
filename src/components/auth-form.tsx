@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { signIn, signUp, type AuthResult } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
 
-const initial: AuthResult = { error: null, message: null };
+const initial: AuthResult = { error: null };
 
 function CredentialsForm({ mode }: { mode: "login" | "register" }) {
   const [result, action, pending] = useActionState(mode === "login" ? signIn : signUp, initial);
@@ -22,7 +22,6 @@ function CredentialsForm({ mode }: { mode: "login" | "register" }) {
           className="min-h-12 w-full rounded-lg border border-input bg-background px-3 text-foreground" />
       </div>
       {result.error && <p role="alert" className="text-sm text-destructive">{result.error}</p>}
-      {result.message && <p role="status" className="text-sm text-primary">{result.message}</p>}
       <Button type="submit" size="lg" disabled={pending} className="min-h-12 w-full">
         {pending ? "Aguarde..." : mode === "login" ? "Entrar" : "Criar conta"}
       </Button>

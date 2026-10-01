@@ -46,7 +46,6 @@ Abra [http://127.0.0.1:3000](http://127.0.0.1:3000). O servidor Next.js de desen
 | `SUPABASE_URL` | URL da API do projeto Supabase; local: `http://127.0.0.1:57321` |
 | `SUPABASE_PUBLISHABLE_KEY` | Chave publicável usada pelo Supabase Auth no servidor |
 | `SUPABASE_SECRET_KEY` | Chave secreta usada somente nas ações do servidor para ler e gravar jornadas |
-| `APP_URL` | Origem do site, usada no link de confirmação de e-mail |
 
 O exemplo em `.env.local.example` contém os endereços locais e marcadores para as chaves. Em produção, `SUPABASE_URL` deve usar HTTPS. A chave secreta nunca deve aparecer no código cliente, em logs públicos ou no Git.
 
@@ -54,16 +53,8 @@ O exemplo em `.env.local.example` contém os endereços locais e marcadores para
 
 1. Crie um projeto no Supabase Cloud.
 2. Faça `npx supabase login`, `npx supabase link` e `npx supabase db push` para aplicar as migrations ao projeto novo. **Não** use `db reset --linked`: esse comando apaga dados remotos.
-3. Publique o Next.js em um host compatível (por exemplo, Vercel) e configure `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` e `APP_URL` no ambiente do servidor. `APP_URL` deve ser a origem HTTPS pública do site.
-4. Em Supabase Auth, configure **Site URL** para `APP_URL` e adicione `APP_URL/auth/callback` às **Redirect URLs**. Mantenha confirmação de e-mail habilitada e configure SMTP para entrega confiável dos e-mails em produção.
-
-No template **Confirm signup** do Supabase Auth, use este link de confirmação para que o servidor possa validar o token e criar a sessão:
-
-```html
-<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email">Confirmar e-mail</a>
-```
-
-`APP_URL` não deve terminar com `/auth/callback`; a aplicação acrescenta esse caminho ao enviar o cadastro.
+3. Publique o Next.js em um host compatível (por exemplo, Vercel) e configure `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` e `SUPABASE_SECRET_KEY` no ambiente do servidor.
+4. Em Supabase Auth, mantenha o provedor Email ativo e desative **Confirm Email**. O cadastro por e-mail e senha cria a sessão imediatamente, sem mensagem de confirmação. A aplicação não oferece recuperação de senha por e-mail.
 
 O repositório GitHub contém apenas o código. Sem um projeto Supabase Cloud e um site hospedado, não há sincronização entre aparelhos. Ao criar a primeira conta na nuvem, a jornada começa vazia. A jornada anterior no banco local permanece guardada lá e não é enviada automaticamente.
 
