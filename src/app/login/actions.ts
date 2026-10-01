@@ -35,7 +35,7 @@ export async function signUp(_previous: AuthResult, formData: FormData): Promise
   const client = await createAuthSupabaseClient();
   const { data, error } = await client.auth.signUp({
     ...credentials.data,
-    options: { emailRedirectTo: new URL("/auth/callback", siteUrl).toString() },
+    options: { emailRedirectTo: new URL("/auth/confirm", siteUrl).toString() },
   });
   if (error) return { error: "Não foi possível criar a conta. Tente novamente.", message: null };
   if (!data.session) return { error: null, message: "Confira seu e-mail para confirmar a conta. Depois, entre com sua senha." };
